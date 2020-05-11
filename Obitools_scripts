@@ -1,0 +1,48 @@
+#In order to run 95 base pair long sequences from the Towuti Lake trnL project, modified scripts from “trnL outperforms rbcL as a DNA metabarcoding marker when compared with the observed plant component of the diet of wild white-faced capuchins (Cebus capucinus, Primates)” (https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0199556) and Wolves’ diet based on DNA metabarcoding tutorial (https://pythonhosted.org/OBITools/wolves.html) were used. 
+
+#Scripts adapted from the Wolves’ diet based on DNA metabarcoding tutorial (https://pythonhosted.org/OBITools/wolves.html). If the sequences are at an adequate length (i.e. >150), samples should run with the scripts below. 
+
+#1. Recover full sequence reads from forward and reverse partial reads
+obitools.sh illuminapairedend --score-min=20 -r R.fastq F.fastq > paired.fastq
+
+#2. Remove unaligned sequence records
+obitools.sh obigrep -p 'mode!="joined"' paired.fastq > paired.ali.fastq
+
+#3. Assign each sequence record to the corresponding sample/marker combination
+obitools.sh ngsfilter -t ngsfilter.txt -u unidentified.fastq paired.ali.fastq > paired.ali.assigned.fastq
+
+#4. Dereplicate reads into uniq sequences
+obitools.sh obiuniq -m sample paired.ali.assigned.fastq > paired.ali.assigned.uniq.fasta
+obitools.sh obiannotate -k count -k merged_sample paired.ali.assigned.uniq.fasta > $$ ; mv $$ paired.ali.assigned.uniq.fasta
+
+#5. Keep only the sequences having a count greater or equal to 10 and a length shorter than 10 bp
+obitools.sh obigrep -l 10 -p 'count>=10' paired.ali.assigned.uniq.fasta > paired.ali.assigned.uniq.c10.l10.fasta
+
+#6. Clean the sequences for PCR/sequencing errors (sequence variants)
+obitools.sh obiclean -s merged_sample -r 0.05 -H  paired.ali.assigned.uniq.c10.l10.fasta > paired.ali.assigned.uniq.c10.l10.clean.fasta
+
+#7. Assign each sequence to a taxon
+obitools.sh ecotag -d ./ECODB/embl_last -R db_v05.fasta paired.ali.assigned.uniq.c10.l10.clean.fasta >  paired.ali.assigned.uniq.c10.l10.clean.tag.fasta
+
+#8. Generate the final result table
+obitools.sh obiannotate  --delete-tag=scientific_name_by_db --delete-tag=obiclean_samplecount --delete-tag=obiclean_count --delete-tag=obiclean_singletoncount --delete-tag=obiclean_cluster --delete-tag=obiclean_internalcount --delete-tag=obiclean_head --delete-tag=taxid_by_db --delete-tag=obiclean_headcount --delete-tag=id_status --delete-tag=rank_by_db --delete-tag=order_name --delete-tag=order paired.ali.assigned.uniq.c10.l10.clean.tag.fasta > paired.ali.assigned.uniq.c10.l10.clean.tag.ann.fasta
+obitools.sh obisort -k count -r paired.ali.assigned.uniq.c10.l10.clean.tag.ann.fasta > paired.ali.assigned.uniq.c10.l10.clean.tag.ann.sort.fasta
+obitools.sh obitab -o paired.ali.assigned.uniq.c10.l10.clean.tag.ann.sort.fasta > paired.ali.assigned.uniq.c10.l10.clean.tag.ann.sort.tab
+
+#As the samples did not successfully run using the provided scripts within the Wolves’ tutorial; modified scripts from “trnL outperforms rbcL as a DNA metabarcoding marker when compared with the observed plant component of the diet of wild white-faced capuchins (Cebus capucinus, Primates)” were used.
+
+#For the illuminapairedend step, a minimum score of 20 was used. As barcodes had been removed in the original sequence processing and reads were already demultiplexed, ngsfilter was run with -:- in the mapping file in place of the barcode tag sequence. The following commands were then used for each sequencing file (one file existed per sample). 
+
+Below scripts were contained within bash loop named ‘pair.sh’
+obitools.sh illuminapairedend --without-progress-bar --score-min=20 -r ${sample}_L001_R2.trim.fastq ${sample}_L001_R1.trim.fastq > ${sample}_L001_R_paired.fastq
+obitools.sh obigrep --without-progress-bar -p 'mode!="joined"' ${sample}_L001_R_paired.fastq > ${sample}_L001_R_paired.ali.fastq
+obitools.sh ngsfilter --without-progress-bar -t 7.95.txt -u ${sample}_L001_R_paired.ali.unidentified.fastq ${sample}_L001_R_paired.ali.fastq > ${sample}_L001_R_ paired.ali.assigned.fastq 
+obitools.sh obigrep --without-progress-bar -a "error:Cannot assign sequence to a sample" ${sample}_L001_R_paired.ali.unidentified.fastq > ${sample}_L001_R_paired.ali.unidentified.good.fastq
+
+#The following commands were used to name, concatenate the above files and dereplicate the sequences.Below script contains bash loop named ‘join.sh’ to name each sample.
+For example - obitools.sh obiannotate -S sample:7.95 1_CHNFJ_AATCAGTCTCGT_L001_R_paired.ali.unidentified.good.fastq > 7.95.id.fastq
+obitools.sh obiuniq -m sample *.id.fastq > all_uniq.fasta
+
+# The remainder of the pipeline is the same as the wolves’ example leading on from step 4.
+
+
